@@ -1,8 +1,19 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.filters import CommandStart, Command
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
+from os import getenv
 
 router = Router()
+user_questions = {}
+ADMIN_ID = getenv("ADMIN_ID")
+SUPPORT_CHAT_ID = int(getenv("SUPPORT_CHAT_ID"))
+
+
+class FormQuestion(StatesGroup):
+    question: str = State()
 
 
 @router.callback_query(F.data == "ask_question")
@@ -49,7 +60,10 @@ async def handle_ask_question(callback: CallbackQuery):
         ],
     ]
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await callback.message.answer("Выберете один из вариантов", reply_markup=keyboard)
+    await callback.message.answer(
+        'Выберите интересующий вас пункт в разделе "Частые вопросы":',
+        reply_markup=keyboard,
+    )
 
 
 @router.callback_query(F.data == "eos_access")
@@ -109,8 +123,52 @@ async def handle_transfer_recovery(callback: CallbackQuery):
 
 
 @router.callback_query(F.data == "other_question")
-async def handle_other_question(callback: CallbackQuery):
+async def handle_other_question(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(
         "Если у вас есть другие вопросы, пожалуйста, напишите их в чате."
         "Мы перенаправим их в поддержку и постораемся ответить на них как можно быстрее."
     )
+    await state.set_state(FormQuestion.question)
+    await callback.answer()
+
+
+@router.message(
+    F.chat.id != SUPPORT_CHAT_ID, ~F.reply_to_message, FormQuestion.question
+)
+async def forward_question_to_group(message: Message, state: FSMContext):
+    bot = message.bot
+    user_id = message.from_user.id
+    username = message.from_user.username or message.from_user.full_name
+    question_text = message.text
+
+    if not question_text:
+        await message.answer(
+            "Пожалуйста, отправьте текстовое сообщение с вашим вопросом."
+        )
+        return
+
+    forward = await bot.send_message(
+        SUPPORT_CHAT_ID,
+        f"📩 Новый вопрос от @{username} (ID: {user_id}):\n\n{question_text}",
+    )
+
+    user_questions[forward.message_id] = user_id
+    await message.answer("✅ Ваш вопрос отправлен. Ожидайте ответ.")
+    await state.clear()
+
+
+@router.message(F.chat.id == SUPPORT_CHAT_ID, F.reply_to_message)
+async def reply_from_group(message: Message):
+    bot = message.bot
+    replied_msg = message.reply_to_message
+    if replied_msg.message_id in user_questions:
+        user_id = user_questions[replied_msg.message_id]
+        try:
+            await bot.send_message(
+                user_id, f"📬 Ответ на ваш вопрос:\n\n{message.text}"
+            )
+            await message.reply("✅ Ответ успешно отправлен пользователю.")
+        except Exception as e:
+            await message.reply(f"⚠️ Не удалось отправить ответ пользователю: {e}")
+    else:
+        await message.reply("ℹ️ Это не ответ на пересланное сообщение с вопросом.")

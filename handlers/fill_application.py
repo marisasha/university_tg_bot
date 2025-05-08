@@ -108,7 +108,7 @@ async def process_snils(message: Message, state: FSMContext):
     }
 
     input_path = "template/template_statement.docx"
-    output_path = f"fill_template/Заявление_{data.get('full_name').split()[0]}.docx"
+    output_path = f"fill_template/Заявление_{data.get('full_name').split()[0]}{data.get('full_name').split()[1][0]}{data.get('full_name').split()[2][0]}.docx"
     fill_docx_template(render_docx, input_path, output_path)
     filled_doc = FSInputFile(output_path)
     await message.answer_document(
