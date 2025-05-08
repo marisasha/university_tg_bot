@@ -27,6 +27,11 @@ async def handle_fill_application(callback: CallbackQuery, state: FSMContext):
 
 @router.message(Form.full_name)
 async def process_full_name(message: Message, state: FSMContext):
+    if len(message.text.split()) != 3:
+        await message.answer(
+            "Пожалуйста, вводите ваше ФИО в формате: Фамилия Имя Отчество"
+        )
+        return
     full_name = message.text
     await state.update_data(full_name=full_name)
     await message.answer("Введите вашу дату рождения (в формате ДД.ММ.ГГГГ):")
@@ -35,9 +40,12 @@ async def process_full_name(message: Message, state: FSMContext):
 
 @router.message(Form.birth_date)
 async def process_birth_date(message: Message, state: FSMContext):
+    if message.text[2] != "." or message.text[5] != "." or len(message.text) != 10:
+        await message.answer("Пожалуйста, вводите дату рождения в формате: ДД.ММ.ГГГГ")
+        return
     birth_date = message.text
     await state.update_data(birth_date=birth_date)
-    await message.answer("Введите номер вашей группы:")
+    await message.answer("Введите номер вашей группы:(Например - ИДБ-24-01)")
     await state.set_state(Form.group_number)
 
 
@@ -45,12 +53,22 @@ async def process_birth_date(message: Message, state: FSMContext):
 async def process_group_number(message: Message, state: FSMContext):
     group_number = message.text
     await state.update_data(group_number=group_number)
-    await message.answer("Введите ваш номер телефона:")
+    await message.answer("Введите ваш номер телефона:(Например - +79001110011)")
     await state.set_state(Form.phone_number)
 
 
 @router.message(Form.phone_number)
 async def process_phone_number(message: Message, state: FSMContext):
+    if (
+        message.text[0] != "+"
+        or message.text[1] != "7"
+        or len(message.text) != 12
+        or not message.text[1:].isdigit()
+    ):
+        await message.answer(
+            "Пожалуйста, вводите номер телефона в формате: +79001110011"
+        )
+        return
     phone_number = message.text
     await state.update_data(phone_number=phone_number)
     await message.answer("Введите ваш адрес электронной почты:")
@@ -59,6 +77,9 @@ async def process_phone_number(message: Message, state: FSMContext):
 
 @router.message(Form.email)
 async def process_email(message: Message, state: FSMContext):
+    if "@" not in message.text or "." not in message.text:
+        await message.answer("Пожалуйста, введите корректный адрес электронной почты.")
+        return
     email = message.text
     await state.update_data(email=email)
     await message.answer("Введите ваш СНИЛС:")
@@ -67,6 +88,9 @@ async def process_email(message: Message, state: FSMContext):
 
 @router.message(Form.snils)
 async def process_snils(message: Message, state: FSMContext):
+    if len(message.text) != 11 or not message.text.isdigit():
+        await message.answer("Пожалуйста, введите корректный СНИЛС.")
+        return
     snils = message.text
     await state.update_data(snils=snils)
 
